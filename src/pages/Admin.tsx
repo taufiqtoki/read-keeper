@@ -5,22 +5,47 @@ import { Input } from "@/components/ui/input";
 import { Navigation } from "@/components/Navigation";
 import { Upload, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { openDB } from 'idb';
+
+// Initialize the IndexedDB database
+const initDB = async () => {
+  return openDB('bookDB', 1, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains('pdf')) {
+        db.createObjectStore('pdf');
+      }
+    },
+  });
+};
 
 const Admin = () => {
   const [newBookmark, setNewBookmark] = useState("");
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.type === "application/pdf") {
-      // Store the file reference in localStorage (in a real app, we'd use proper storage)
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        localStorage.setItem("bookPdf", e.target?.result as string);
-        toast.success("PDF uploaded successfully!");
-      };
-      reader.readAsDataURL(file);
-    } else {
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
       toast.error("Please upload a PDF file");
+      return;
+    }
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const db = await initDB();
+          await db.put('pdf', e.target?.result, 'bookPdf');
+          toast.success("PDF uploaded successfully!");
+        } catch (error) {
+          console.error('Error storing PDF:', error);
+          toast.error("Failed to store PDF. The file might be too large.");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } catch (error) {
+      console.error('Error reading file:', error);
+      toast.error("Failed to read the PDF file");
     }
   };
 
